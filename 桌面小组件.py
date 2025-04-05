@@ -1,13 +1,17 @@
 # 运行前必须安装pygame,requests,psutil,matplotlib库！
-# 右键窗口可以设置窗口位置是否锁定（能否拖动）及退出
+# 右键窗口可以设置窗口位置是否锁定（能否拖动）、作者信息（嘻嘻）及退出
 # 首次运行时会弹窗提示在location.txt写入要查询天气的城市的英文名或拼音
-# 在之后弹出的记事本里（location.txt）第一行写入城市英文名或拼音，然后直接关闭就OK
+# 在之后弹出的记事本里（location.txt）第一行写入城市英文名或拼音，然后直接关闭保存就OK，然后再次启动该程序就可以获取城市的天气信息了
 # 点击天气可以刷新，对于“未知”天气也可以通过这个方法获取详细信息（天气API网站是英文网站，得手动汉化，有些汉化得不大全面）
 # 若出现“无服务”字样，则要么网络不佳，要么API链接因为访问人数过多不稳定而暂时无法使用
 # 可以选择本地文件夹并播放其中的音乐
 # <或>切歌，<<或>>后退/前进30秒，■或▲表示播放/暂停
+# （顺带一提，pygame自带的音乐播放功能有些地方好像有点问题，比如说get_pos和set_pos这两个功能，所以音频计时相关功能很大一部分是我用笨办法自定义定时器实现的）
 # 城市、窗口位置和音乐相关消息会有历史记录
-# 华子，写于2025.4
+# 目前只是一个原型程序，排版和性能和错误处理后续还可以优化的啊
+# 稍微记录一下吧
+# 华子（Yauhak），写于2025.4
+
 import os 
 import sys
 import pygame
@@ -21,7 +25,7 @@ from tkinter import filedialog
 import psutil as mo
 from time import strftime,gmtime,sleep
 import matplotlib
-matplotlib.use('TkAgg')  # 必须放在导入pyplot之前
+matplotlib.use('TkAgg')  # 用于嵌入tkinter库进行CPU占用率图表的绘制，必须放在导入pyplot之前
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 
@@ -31,7 +35,7 @@ class FloatingWindow:
             messagebox.showinfo("提示","无位置信息。\n请在location.txt进行配置。\n（将需要查询天气的城市的英文写到该文件第一行。）")
             file=open("location.txt","w")
             file.close()
-            self.Notepad()
+            self.Notepad() # 弹出记事本（在此处第一行写上城市的拼音或英文）
         f=open("location.txt","r")
         self.localstation=f.readline()
         f.close()
@@ -39,12 +43,12 @@ class FloatingWindow:
             messagebox.showinfo("提示","位置信息错误！")
             self.Notepad()
         self.root = tk.Tk()
-        self.root.overrideredirect(True)
-        self.root.attributes('-alpha', 0.7)
-        self.root.config(bg='#2e2e2e')
+        self.root.overrideredirect(True) # 不要边框，实现悬浮窗效果，这么做还有个好处是程序是在后台运行的，哪怕切换窗口也不影响，可以实现桌面常驻
+        self.root.attributes('-alpha', 0.7) # 搞个半透明效果
+        self.root.config(bg='#2e2e2e') # 黑色背景
         self.context_menu = tk.Menu(self.root, tearoff=0)
 
-        self.fig, self.ax = plt.subplots(figsize=(5, 2))  
+        self.fig, self.ax = plt.subplots(figsize=(5, 2)) # CPU图表创建 
         self.fig.patch.set_facecolor('#2e2e2e')  
         self.ax.set_facecolor('#2e2e2e')
         self.ax.tick_params(colors='white', labelsize=8)  
@@ -53,7 +57,7 @@ class FloatingWindow:
         if not os.path.exists("pos.txt"):
             self.x = 20
             self.y = 20
-            # 新增：位置锁定状态
+            # 新增：位置锁定状态（即窗口不可拖动）
             self.is_fixed = False  # 默认未锁定
         else:
             f=open("pos.txt","r")
@@ -64,16 +68,16 @@ class FloatingWindow:
             self.is_fixed = True
 
         pygame.init()
-        pygame.mixer.init()
+        pygame.mixer.init() # pygame音频播放功能初始化
 
         self.create_widgets()
-        if os.path.exists("music.txt"):
+        if os.path.exists("music.txt"): # 如果有音乐相关历史记录
             file=open("music.txt","r")
             f=file.read().split('\n')
             file.close()
-            self.folder=f[0]
-            self.currentmusic=int(f[1])
-            self.find_audio_files()
+            self.folder=f[0] # 音乐文件夹
+            self.currentmusic=int(f[1]) # 播放到第几首了
+            self.find_audio_files() # 播放到第几秒了
             pygame.mixer.music.load(self.audiofiles[self.currentmusic])
             self.initmusic()
             if len(f)>2:
@@ -83,7 +87,7 @@ class FloatingWindow:
             current=self.music_pos
             self.progress_label.config(text=f"{strftime('%M:%S',gmtime(current))}/"
                                       f"{strftime('%M:%S',gmtime(self.total_length))}")
-        else:
+        else: # 没有播放记录ㄟ( ▔, ▔ )ㄏ
             self.folder=''
             self.currentmusic=0
             self.foundmusic=False
@@ -91,15 +95,15 @@ class FloatingWindow:
 
         self.root.geometry(f'700x330+{self.x}+{self.y}')
         self.music_disp=False
-        self.isskip=False
-
+        self.isskip=False # 不是通过手动切歌而换歌的（自动连播）
+        # 右键小菜单
         self.context_menu.add_command(
             label="解锁或锁定",
             command=self.toggle_fix
         )
         self.context_menu.add_command(
             label="关于作者",
-            command=lambda:messagebox.showinfo("作者","华子\nQQ 3953814837")
+            command=lambda:messagebox.showinfo("作者","华子（Yauhak）\nQQ 3953814837")
         )
         self.context_menu.add_command(
             label="关闭",
@@ -111,20 +115,20 @@ class FloatingWindow:
         self.offset_y = 0
         
         self.bind_events()
-        self.update_time()
-        self.update_date()
-        self.update_cpu()
-        self.update_mem()
-        self.update_weather()
-        self.update_netstream()
-        self.update_signiture()
-        self.lower_myself()
+        self.update_time() # 时间更新
+        self.update_date() # 日期更新
+        self.update_cpu() # CPU占用率更新
+        self.update_mem() # 内存使用率更新
+        self.update_weather() # 天气更新
+        self.update_netstream() # 网络流量总量更新
+        self.update_signiture() # 随机挑一个个性签名
+        self.lower_myself() # 降低窗口层级（使其吸附在桌面上）
 
     def Notepad(self):
         if sys.platform.startswith('win'):
             subprocess.run(["notepad","location.txt"],check=True)
             sys.exit()
-        elif sys.platform.startswith('linux'):
+        elif sys.platform.startswith('linux'): # 目前我的程序在Linux上好像兼容得不大好😂
             subprocess.run(["xdg-open","location.txt"],check=True)
             sys.exit()
             sys.exit()
@@ -139,7 +143,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.time_label.place(x=15,y=10)
-        
+        # 天气按钮
         self.weather_btn = tk.Button(
             self.root,
             text="??",
@@ -150,7 +154,7 @@ class FloatingWindow:
             borderwidth=0
         )
         self.weather_btn.place(x=142,y=5)
-        
+        # 日期
         self.date_label = tk.Label(
             self.root,
             text="1970-1-1",
@@ -159,7 +163,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.date_label.place(x=15,y=52)
-
+        # CPU
         self.Cpu_label = tk.Label(
             self.root,
             text="CPU使用率：0%",
@@ -168,7 +172,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.Cpu_label.place(x=20,y=97)
-        
+        # 内存
         self.Mem_label = tk.Label(
             self.root,
             text="内存占用率：0%",
@@ -177,7 +181,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.Mem_label.place(x=20,y=127)
-
+        # 网络流量
         self.Net_label1 = tk.Label(
             self.root,
             text="↑：114KB",
@@ -195,7 +199,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.Net_label2.place(x=20,y=187)
-        
+        # 音频快退、快进30秒
         self.back_30s_btn = tk.Button(
             self.root,
             text="<<",
@@ -217,7 +221,7 @@ class FloatingWindow:
             borderwidth=0
         )
         self.last_song_btn.place(x=50,y=222)
-
+        # 音频暂停、继续
         self.pause_continue_btn = tk.Button(
             self.root,
             text="▲",
@@ -228,7 +232,7 @@ class FloatingWindow:
             borderwidth=0
         )
         self.pause_continue_btn.place(x=70,y=222)
-
+        # 切歌
         self.next_song_btn = tk.Button(
             self.root,
             text=">",
@@ -250,7 +254,7 @@ class FloatingWindow:
             borderwidth=0
         )
         self.forward_30s_btn.place(x=120,y=222)
-
+        # 选择音乐文件夹
         self.choose = tk.Button(
             self.root,
             text="选音乐",
@@ -261,7 +265,7 @@ class FloatingWindow:
             borderwidth=0
         )
         self.choose.place(x=155,y=223)
-
+        # 当前播放的歌曲
         self.disp_label = tk.Label(
             self.root,
             text="无播放",
@@ -270,7 +274,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.disp_label.place(x=20,y=252)
-
+        # 播放进度
         self.progress_label = tk.Label(
             self.root,
             text="00:00/00:00",
@@ -279,7 +283,7 @@ class FloatingWindow:
             bg='#2e2e2e'
         )
         self.progress_label.place(x=20,y=282)
-
+        # 个性签名
         self.signature_label = tk.Label(
             self.root,
             text="个性签名",
@@ -298,7 +302,7 @@ class FloatingWindow:
     def exit_me(self):
         if not self.folder=='' and self.foundmusic==True:
             file=open("music.txt","w")
-            file.write(self.folder+'\n'+str(self.currentmusic)+'\n'+str(self.music_pos))
+            file.write(self.folder+'\n'+str(self.currentmusic)+'\n'+str(self.music_pos)) # 保存一下音乐进度
             file.close()
         sys.exit()
 
@@ -340,6 +344,7 @@ class FloatingWindow:
         self.audiofiles=audio_files
         self.foundmusic=True
 
+    # 初始化一下播放相关信息
     def initmusic(self):
         self.music_pos=0
         self.music_disp=False
@@ -400,7 +405,7 @@ class FloatingWindow:
             messagebox.showinfo("提示","无音频文件！")
             return
         pygame.mixer.music.stop()
-        self.music_pos=self.total_length-2
+        self.music_pos=self.total_length-2 # 我的思路是直接跳到歌曲末尾，然后“当前播放的音乐”换成下一首，剩下的切歌播放交给update_progress来做
         self.swlastsong() 
 
     def nextsong(self):
@@ -410,7 +415,7 @@ class FloatingWindow:
             messagebox.showinfo("提示","无音频文件！")
             return
         pygame.mixer.music.stop()
-        self.music_pos=self.total_length-2
+        self.music_pos=self.total_length-2 # 思路同上
         self.swnextsong() 
 
     def swlastsong(self):
@@ -433,9 +438,9 @@ class FloatingWindow:
         else:
             return
         if abs(self.music_pos-self.total_length)<=1 or self.music_pos>=self.total_length:
-            if self.isskip==False:
-                self.currentmusic=(self.currentmusic+1)%len(self.audiofiles)
-            if self.timerid:
+            if self.isskip==False: # 如果不是手动切歌
+                self.currentmusic=(self.currentmusic+1)%len(self.audiofiles) # 换成下一首
+            if self.timerid: # 如果上一个音频计时器存在则销毁
                 self.root.after_cancel(self.timerid)
             file=open("music.txt","w")
             file.write(self.folder+'\n'+str(self.currentmusic))
@@ -455,7 +460,7 @@ class FloatingWindow:
             self.context_menu.grab_release()  # 确保释放菜单焦点
 
     def toggle_fix(self):
-        """切换锁定/移动状态"""
+        # 切换锁定/移动状态
         self.is_fixed = not self.is_fixed
         if self.is_fixed==True:
             file=open("pos.txt","w")
