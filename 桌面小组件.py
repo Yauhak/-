@@ -437,7 +437,7 @@ class FloatingWindow:
             self.music_pos=self.music_pos+1
         else:
             return
-        if abs(self.music_pos-self.total_length)<=1 or self.music_pos>=self.total_length:
+        if abs(self.music_pos-self.total_length)<=1 or self.music_pos>=self.total_length: # 马上就要播放完了或者已经超过最大长度了
             if self.isskip==False: # 如果不是手动切歌
                 self.currentmusic=(self.currentmusic+1)%len(self.audiofiles) # 换成下一首
             if self.timerid: # 如果上一个音频计时器存在则销毁
